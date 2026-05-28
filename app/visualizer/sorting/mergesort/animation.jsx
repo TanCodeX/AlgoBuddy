@@ -285,6 +285,7 @@ const MergeSortVisualizer = () => {
                   resetStats();
                 }}
                 disabled={sorting}
+                currentArray={array}
                 className="mb-4"
               />
             </div>
@@ -361,8 +362,6 @@ const MergeSortVisualizer = () => {
               isPaused={isPaused}
               onTogglePlayPause={togglePlayPause}
               speed={speed}
-              onIncreaseSpeed={increaseSpeed}
-              onDecreaseSpeed={decreaseSpeed}
               onSpeedChange={setSpeed}
             />
           )}

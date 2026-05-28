@@ -330,6 +330,7 @@ const QuickSortVisualizer = () => {
                   resetStats();
                 }}
                 disabled={sorting}
+                currentArray={array}
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -355,8 +356,6 @@ const QuickSortVisualizer = () => {
               isPaused={isPaused}
               onTogglePlayPause={togglePlayPause}
               speed={speed}
-              onIncreaseSpeed={increaseSpeed}
-              onDecreaseSpeed={decreaseSpeed}
               onSpeedChange={setSpeed}
             />
           )}
