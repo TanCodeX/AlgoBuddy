@@ -4,6 +4,7 @@ import Code from "@/app/visualizer/sorting/heapsort/codeBlock";
 import Quiz from "@/app/visualizer/sorting/heapsort/quiz";
 import ExploreOther from "@/app/components/ui/exploreOther";
 import ModuleCard from "@/app/components/ui/ModuleCard";
+import TrackVisit from "@/app/components/ui/TrackVisit";
 import VisualizerPageLayout, {
   createVisualizerPaths,
 } from "@/app/visualizer/components/VisualizerPageLayout";
@@ -40,7 +41,9 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <VisualizerPageLayout
+    <>
+      <TrackVisit name="Heap Sort" path="/visualizer/sorting/heapsort" category="Sorting" />
+      <VisualizerPageLayout
       paths={createVisualizerPaths("Sorting", "Heap Sort")}
       title="Heap Sort"
       animation={<Animation />}

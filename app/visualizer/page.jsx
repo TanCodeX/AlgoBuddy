@@ -9,6 +9,7 @@ import TreeModal from "@/app/components/models/TreeModal";
 import GraphModal from "@/app/components/models/GraphModal";
 import TutorialOverlay from "@/app/components/ui/TutorialOverlay";
 import BackToTop from "../components/ui/backtotop";
+import RecentlyViewed from "@/app/components/ui/RecentlyViewed";
 
 export const metadata = {
   title: "Algorithm Visualizer | AlgoBuddy",
@@ -697,6 +698,7 @@ const Visualizer = () => {
       <TutorialOverlay />
       <VisualizerClient initialSections={clientSections} />
       <div className="w-full relative z-10">
+        <RecentlyViewed />
         
         <BackToTop />
         <Footer />

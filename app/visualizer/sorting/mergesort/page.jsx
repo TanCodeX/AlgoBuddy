@@ -4,6 +4,7 @@ import Quiz from "@/app/visualizer/sorting/mergesort/quiz";
 import Code from "@/app/visualizer/sorting/mergesort/codeBlock";
 import ExploreOther from "@/app/components/ui/exploreOther";
 import ModuleCard from "@/app/components/ui/ModuleCard";
+import TrackVisit from "@/app/components/ui/TrackVisit";
 import VisualizerPageLayout, {
   createVisualizerPaths,
 } from "@/app/visualizer/components/VisualizerPageLayout";
@@ -48,7 +49,9 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <VisualizerPageLayout
+    <>
+      <TrackVisit name="Merge Sort" path="/visualizer/sorting/mergesort" category="Sorting" />
+      <VisualizerPageLayout
       paths={createVisualizerPaths("Sorting", "Merge Sort")}
       title="Merge Sort"
       animation={<Animation />}

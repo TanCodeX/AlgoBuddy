@@ -4,6 +4,7 @@ import ExploreOther from "@/app/components/ui/exploreOther";
 import Code from "@/app/visualizer/sorting/selectionsort/codeBlock";
 import Quiz from "@/app/visualizer/sorting/selectionsort/quiz";
 import ModuleCard from "@/app/components/ui/ModuleCard";
+import TrackVisit from "@/app/components/ui/TrackVisit";
 import VisualizerPageLayout, {
   createVisualizerPaths,
 } from "@/app/visualizer/components/VisualizerPageLayout";
@@ -45,7 +46,9 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <VisualizerPageLayout
+    <>
+      <TrackVisit name="Selection Sort" path="/visualizer/sorting/selectionsort" category="Sorting" />
+      <VisualizerPageLayout
       paths={createVisualizerPaths("Sorting", "Selection Sort")}
       title="Selection Sort"
       animation={<Animation />}

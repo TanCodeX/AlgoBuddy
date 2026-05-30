@@ -4,9 +4,11 @@ import Quiz from "@/app/visualizer/sorting/bubblesort/quiz";
 import Code from "@/app/visualizer/sorting/bubblesort/codeBlock";
 import ExploreOther from "@/app/components/ui/exploreOther";
 import ModuleCard from "@/app/components/ui/ModuleCard";
+import TrackVisit from "@/app/components/ui/TrackVisit";
 import VisualizerPageLayout, {
   createVisualizerPaths,
 } from "@/app/visualizer/components/VisualizerPageLayout";
+  
 import { MODULE_MAPS } from "@/lib/modulesMap";
 
 export const metadata = {
@@ -49,7 +51,9 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <VisualizerPageLayout
+    <>
+      <TrackVisit name="Bubble Sort" path="/visualizer/sorting/bubblesort" category="Sorting" />
+      <VisualizerPageLayout
       paths={createVisualizerPaths("Sorting", "Bubble Sort")}
       title="Bubble Sort"
       animation={<Animation />}
