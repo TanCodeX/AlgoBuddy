@@ -1,12 +1,17 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { gsap } from "gsap";
 import ResetButton from "@/app/components/ui/resetButton";
 import GoButton from "@/app/components/ui/goButton";
 import PlaybackControls from "@/app/components/ui/PlaybackControls";
 import useVisualizerKeyboard from "@/app/hooks/useVisualizerKeyboard";
 import { useAnimationEngine } from "@/lib/visualizer/useAnimationEngine";
-import { generateStatesFixedMax, generateStatesFixedAvg, generateStatesVarLongestSub, generateStatesVarSmallestSub } from "@/features/algorithms/array/slidingWindowLogic";
+import { 
+  generateStatesFixedMax, 
+  generateStatesFixedAvg, 
+  generateStatesVarLongestSub, 
+  generateStatesVarSmallestSub 
+} from "@/features/algorithms/array/slidingWindowLogic";
 
 const PROBLEMS = {
   FIXED_MAX: "fixed-max",
@@ -15,6 +20,7 @@ const PROBLEMS = {
   VAR_SMALLEST_SUB: "var-smallest-sub",
 };
 
+// Define component BEFORE using it
 const Animation = () => {
   const [problemType, setProblemType] = useState(PROBLEMS.FIXED_MAX);
   const [inputData, setInputData] = useState("2, 1, 5, 1, 3, 2");
@@ -23,17 +29,10 @@ const Animation = () => {
   const [dataArray, setDataArray] = useState([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
-  const [pendingStart, setPendingStart] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [discussion, setDiscussion] = useState("");
-  const [isAnimating, setIsAnimating] = useState(false);
 
-  const animationRef = useRef(null);
-  const wasPausedRef = useRef(false);
-  const stateQueueRef = useRef([]);
-  const currentStateIdxRef = useRef(0);
   const elementRefs = useRef([]);
-
   const [steps, setSteps] = useState([]);
   const [visualState, setVisualState] = useState({
     left: -1, right: -1, current: null, best: null,
@@ -41,30 +40,7 @@ const Animation = () => {
     violation: false, success: false, done: false
   });
 
-  // Initialize engine first
-  const engine = useAnimationEngine({ steps, onStep: handleStep, initialSpeed: 1000 });
-  const currentStepData = steps[engine.currentStep];
-
-  const handleReset = useCallback(() => {
-    engine.reset();
-    setDataArray([]);
-    setVisualState({
-      left: -1, right: -1, current: null, best: null,
-      explanation: "", activeWindow: [-1, -1],
-      violation: false, success: false, done: false
-    });
-    setSteps([]);
-    setMessage("");
-    setMessageType("");
-    setIsAnimating(false);
-    
-    elementRefs.current.forEach((ref) => {
-      if (ref) {
-        gsap.to(ref, { backgroundColor: "#E5E7EB", borderColor: "#D1D5DB", color: "#1F2937", duration: 0 });
-      }
-    });
-  }, [engine]);
-
+  // Define callback handlers BEFORE using them
   const handleStep = useCallback((state) => {
     setVisualState({
       left: state.left,
@@ -78,7 +54,6 @@ const Animation = () => {
       done: state.done
     });
 
-    // GSAP highlighting
     elementRefs.current.forEach((ref, index) => {
       if (!ref) return;
       const [start, end] = state.activeWindow;
@@ -102,9 +77,32 @@ const Animation = () => {
       setMessage("Visualization completed.");
       setMessageType("success");
       setShowQuiz(true);
-      setIsAnimating(false);
     }
   }, []);
+
+  const handleReset = useCallback(() => {
+    engine.reset();
+    setDataArray([]);
+    setVisualState({
+      left: -1, right: -1, current: null, best: null,
+      explanation: "", activeWindow: [-1, -1],
+      violation: false, success: false, done: false
+    });
+    setSteps([]);
+    setMessage("");
+    setMessageType("");
+    setShowQuiz(false);
+    
+    elementRefs.current.forEach((ref) => {
+      if (ref) {
+        gsap.to(ref, { backgroundColor: "#E5E7EB", borderColor: "#D1D5DB", color: "#1F2937", duration: 0 });
+      }
+    });
+  }, []);
+
+  // Initialize engine AFTER defining its dependencies
+  const engine = useAnimationEngine({ steps, onStep: handleStep, initialSpeed: 1000 });
+  const currentStepData = steps[engine.currentStep];
 
   const handleGo = (e) => {
     e.preventDefault();
@@ -145,7 +143,6 @@ const Animation = () => {
     }
 
     setDataArray(parsedArray);
-    setIsAnimating(true);
     
     let generatedStates = [];
     if (problemType === PROBLEMS.FIXED_MAX) {
@@ -309,50 +306,32 @@ Please explain exactly what is happening in this step in detail.`;
       )}
 
       {showQuiz && (
-  <div className="max-w-4xl mx-auto mb-6 bg-white dark:bg-gray-800 p-5 rounded-xl border">
-    <h3 className="text-lg font-bold mb-3">
-      🧠 Quick Challenge
-    </h3>
+        <div className="max-w-4xl mx-auto mb-6 bg-white dark:bg-gray-800 p-5 rounded-xl border">
+          <h3 className="text-lg font-bold mb-3">🧠 Quick Challenge</h3>
+          <p className="mb-3">What is the time complexity of Sliding Window?</p>
+          <div className="flex gap-3 flex-wrap">
+            <button className="px-4 py-2 rounded-lg bg-gray-200">O(n²)</button>
+            <button className="px-4 py-2 rounded-lg bg-green-500 text-white">O(n)</button>
+            <button className="px-4 py-2 rounded-lg bg-gray-200">O(log n)</button>
+          </div>
+        </div>
+      )}
 
-    <p className="mb-3">
-      What is the time complexity of Sliding Window?
-    </p>
-
-    <div className="flex gap-3 flex-wrap">
-      <button className="px-4 py-2 rounded-lg bg-gray-200">
-        O(n²)
-      </button>
-
-      <button className="px-4 py-2 rounded-lg bg-green-500 text-white">
-        O(n)
-      </button>
-
-      <button className="px-4 py-2 rounded-lg bg-gray-200">
-        O(log n)
-      </button>
-    </div>
-  </div>
-)}
-
-{showQuiz && (
-  <div className="max-w-4xl mx-auto mb-6 bg-white dark:bg-gray-800 p-5 rounded-xl border">
-    <h3 className="text-lg font-bold mb-3">
-      💬 Community Discussion
-    </h3>
-
-    <textarea
-      value={discussion}
-      onChange={(e) => setDiscussion(e.target.value)}
-      placeholder="Ask a question or share your explanation..."
-      className="w-full p-3 border rounded-lg"
-      rows={4}
-    />
-
-    <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg">
-      Post Discussion
-    </button>
-  </div>
-)}
+      {showQuiz && (
+        <div className="max-w-4xl mx-auto mb-6 bg-white dark:bg-gray-800 p-5 rounded-xl border">
+          <h3 className="text-lg font-bold mb-3">💬 Community Discussion</h3>
+          <textarea
+            value={discussion}
+            onChange={(e) => setDiscussion(e.target.value)}
+            placeholder="Ask a question or share your explanation..."
+            className="w-full p-3 border rounded-lg"
+            rows={4}
+          />
+          <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg">
+            Post Discussion
+          </button>
+        </div>
+      )}
 
       {dataArray.length > 0 && (
         <div className="max-w-5xl mx-auto space-y-6">
@@ -442,4 +421,5 @@ Please explain exactly what is happening in this step in detail.`;
   );
 };
 
+// Export the component
 export default Animation;
