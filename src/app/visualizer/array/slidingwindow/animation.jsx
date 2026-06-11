@@ -42,7 +42,6 @@ const Animation = () => {
   const wasPausedRef = useRef(false);
   const stateQueueRef = useRef([]);
   const currentStateIdxRef = useRef(0);
-  const elementRefs = useRef([]);
   
   const [steps, setSteps] = useState([]);
   const [visualState, setVisualState] = useState({
@@ -66,7 +65,7 @@ const Animation = () => {
     });
   }, []);
 
-  const engine = useAnimationEngine({ steps, onStep, initialSpeed: 1000 });
+  const engine = useAnimationEngine({ steps, onStep: handleStep, initialSpeed: 1000 });
   const currentStepData = steps[engine.currentStep];
 
   const handleReset = useCallback(() => {
