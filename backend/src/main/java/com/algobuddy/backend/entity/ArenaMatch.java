@@ -54,4 +54,8 @@ public class ArenaMatch {
 
     @Column(name = "xp_awarded_p2")
     private Integer xpAwardedP2;
+
+    @Version
+    @Column(name = "version")
+    private Integer version;
 }

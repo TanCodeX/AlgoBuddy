@@ -6,6 +6,7 @@ import com.algobuddy.backend.entity.ArenaMatch;
 import com.algobuddy.backend.entity.UserArenaProfile;
 import com.algobuddy.backend.repository.ArenaMatchRepository;
 import com.algobuddy.backend.repository.UserArenaProfileRepository;
+import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -117,12 +118,86 @@ public class ArenaService {
 
     @Transactional
     public void recordMatchResult(UUID requestingUserId, com.algobuddy.backend.dto.RecordMatchRequest request) {
-        if (request.getMatchId() != null && !request.getMatchId().isEmpty()) {
-            // Check if match is already recorded to prevent double updates if both clients send the request
-            // Note: Since matchId is stored locally or partially, and we don't have a matchId column in ArenaMatch right now,
-            // we will just proceed. A real robust app would check an indexed matchId column.
-            // For now, we only trigger the API from the winner's side in the frontend to avoid double updates.
+        int retries = 3;
+        while (retries > 0) {
+            try {
+                attemptRecordMatchResult(requestingUserId, request);
+                return;
+            } catch (OptimisticLockException e) {
+                retries--;
+                if (retries == 0) {
+                    throw new RuntimeException("Concurrency conflict: unable to record match result after retries. Please try again.", e);
+                }
+            }
         }
+    }
+
+    private void attemptRecordMatchResult(UUID requestingUserId, com.algobuddy.backend.dto.RecordMatchRequest request) {
+        if (request.getMatchId() != null && !request.getMatchId().isEmpty()) {
+            if (matchRepository.existsByMatchId(request.getMatchId())) {
+                throw new IllegalArgumentException("Match result already recorded for matchId: " + request.getMatchId());
+            }
+        } else {
+            throw new IllegalArgumentException("matchId cannot be null or empty");
+        }
+        
+        UUID opponentId = request.getOpponentId();
+        boolean isWinner = request.isWinner();
+        
+        // Deadlock Prevention: Always lock rows in the same order (e.g. by UUID string comparison)
+        UUID firstId = requestingUserId.compareTo(opponentId) < 0 ? requestingUserId : opponentId;
+        UUID secondId = requestingUserId.compareTo(opponentId) < 0 ? opponentId : requestingUserId;
+
+        // Fetch (and lock) profiles in a consistent order
+        UserArenaProfile firstProfile = profileRepository.findById(firstId)
+                .orElseGet(() -> createDefaultProfile(firstId));
+        UserArenaProfile secondProfile = profileRepository.findById(secondId)
+                .orElseGet(() -> createDefaultProfile(secondId));
+        
+        // Re-assign to p1 (requesting) and p2 (opponent)
+        UserArenaProfile p1Profile = requestingUserId.equals(firstId) ? firstProfile : secondProfile;
+        UserArenaProfile p2Profile = opponentId.equals(firstId) ? firstProfile : secondProfile;
+
+        int p1RatingChange = isWinner ? 25 : -15;
+        int p2RatingChange = isWinner ? -15 : 25;
+
+        int p1XpAwarded = isWinner ? 50 : 10;
+        int p2XpAwarded = isWinner ? 10 : 50;
+
+        p1Profile.setRating(Math.max(0, p1Profile.getRating() + p1RatingChange));
+        p1Profile.setXp(p1Profile.getXp() + p1XpAwarded);
+        p1Profile.setLevel((p1Profile.getXp() / 1000) + 1);
+        p1Profile.setTotalProblemsSolved(p1Profile.getTotalProblemsSolved() + (isWinner ? 1 : 0));
+        if (isWinner) p1Profile.setBattlesWon(p1Profile.getBattlesWon() + 1);
+        else p1Profile.setBattlesLost(p1Profile.getBattlesLost() + 1);
+
+        p2Profile.setRating(Math.max(0, p2Profile.getRating() + p2RatingChange));
+        p2Profile.setXp(p2Profile.getXp() + p2XpAwarded);
+        p2Profile.setLevel((p2Profile.getXp() / 1000) + 1);
+        p2Profile.setTotalProblemsSolved(p2Profile.getTotalProblemsSolved() + (!isWinner ? 1 : 0));
+        if (!isWinner) p2Profile.setBattlesWon(p2Profile.getBattlesWon() + 1);
+        else p2Profile.setBattlesLost(p2Profile.getBattlesLost() + 1);
+
+        profileRepository.save(p1Profile);
+        profileRepository.save(p2Profile);
+
+        ArenaMatch match = ArenaMatch.builder()
+                .matchId(request.getMatchId())
+                .player1Id(requestingUserId)
+                .player2Id(opponentId)
+                .winnerId(isWinner ? requestingUserId : opponentId)
+                .topic(request.getTopic() != null ? request.getTopic() : "Arrays")
+                .difficulty(request.getDifficulty() != null ? request.getDifficulty() : "Easy")
+                .startTime(java.time.LocalDateTime.now().minusMinutes(3)) 
+                .endTime(java.time.LocalDateTime.now())
+                .ratingChangeP1(p1RatingChange)
+                .ratingChangeP2(p2RatingChange)
+                .xpAwardedP1(p1XpAwarded)
+                .xpAwardedP2(p2XpAwarded)
+                .build();
+        
+        matchRepository.save(match);
+    }
         
         UUID opponentId = request.getOpponentId();
         boolean isWinner = request.isWinner();
