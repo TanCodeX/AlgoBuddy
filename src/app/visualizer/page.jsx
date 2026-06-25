@@ -68,10 +68,7 @@ export const metadata = {
   },
 };
 
-
-
 const sections = [
-  
   {
     title: "Code Lab",
     slug: "code-lab",
@@ -150,19 +147,19 @@ const sections = [
           { name: "Binary Search", path: "/visualizer/array/binarysearch" },
         ],
       },
-     {
-      title: "Sorting",
-      items: [
-        { name: "Bubble Sort", path: "/visualizer/array/bubblesort" },
-        { name: "Selection Sort", path: "/visualizer/array/selectionsort" },
-        { name: "Insertion Sort", path: "/visualizer/array/insertionsort" },
-        { name: "Merge Sort", path: "/visualizer/array/mergesort" },
-        { name: "Quick Sort", path: "/visualizer/array/quicksort" },
-        { name: "Heap Sort", path: "/visualizer/array/heapsort" },
-        { name: "Radix Sort", path: "/visualizer/array/radixsort" },
-        { name: "Counting Sort", path: "/visualizer/array/countingsort" },
-      ],
-    },
+      {
+        title: "Sorting",
+        items: [
+          { name: "Bubble Sort", path: "/visualizer/array/bubblesort" },
+          { name: "Selection Sort", path: "/visualizer/array/selectionsort" },
+          { name: "Insertion Sort", path: "/visualizer/array/insertionsort" },
+          { name: "Merge Sort", path: "/visualizer/array/mergesort" },
+          { name: "Quick Sort", path: "/visualizer/array/quicksort" },
+          { name: "Heap Sort", path: "/visualizer/array/heapsort" },
+          { name: "Radix Sort", path: "/visualizer/array/radixsort" },
+          { name: "Counting Sort", path: "/visualizer/array/countingsort" },
+        ],
+      },
       {
         title: "Interview Patterns",
         items: [
@@ -773,10 +770,8 @@ const sections = [
     ],
   },
 ];
+
 const Visualizer = () => {
-  /* Strip non-serialisable `info` (contains JSX modals) before
-     passing to the client component. Icons are fine — they're
-     plain <svg> elements. */
   const clientSections = sections.map(({ info, ...rest }) => ({
     ...rest,
     slug: rest.slug || rest.title.toLowerCase().replace(/\s+/g, "-")
@@ -799,4 +794,3 @@ const Visualizer = () => {
 };
 
 export default Visualizer;
-
