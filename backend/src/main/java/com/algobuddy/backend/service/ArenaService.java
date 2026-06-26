@@ -17,6 +17,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDateTime;
@@ -43,11 +44,14 @@ public class ArenaService {
         }
     }
 
-    @Transactional
     @Cacheable(value = "arenaProfile", key = "#userId", unless = "#result == null")
     public ArenaProfileResponse getProfile(UUID userId) {
         if (!profileRepository.existsById(userId)) {
-            createDefaultProfile(userId);
+            try {
+                createDefaultProfile(userId);
+            } catch (DataIntegrityViolationException e) {
+                log.debug("Profile already created by concurrent request for userId: {}", userId);
+            }
         }
         
         ArenaLeaderboardProjection projection = profileRepository.findProfileWithUserDetails(userId)
@@ -156,18 +160,25 @@ public class ArenaService {
         }
 
         checkInitMatchRateLimit(requestingUserId);
-        if (request.getOpponentId().equals(requestingUserId)) {
-            throw new IllegalArgumentException("Cannot initiate a match against yourself");
-        }
 
         if (matchRepository.findByMatchId(request.getMatchId()).isPresent()) {
             return;
         }
 
+        UUID opponentId;
+        if (request.getMatchId() != null && request.getMatchId().startsWith("mock-match-")) {
+            // Bypass socket matchmaking verification for offline practice matches against AI Bots
+            opponentId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        } else {
+            // Verify the match pair via the WebSocket matchmaking server (Redis-backed)
+            // This ensures the opponent actually consented through WebSocket matchmaking
+            opponentId = verifyMatchmakingPair(request.getMatchId(), requestingUserId);
+        }
+
         ArenaMatch match = ArenaMatch.builder()
                 .matchId(request.getMatchId())
                 .player1Id(requestingUserId)
-                .player2Id(request.getOpponentId())
+                .player2Id(opponentId)
                 .topic(request.getTopic() != null ? request.getTopic() : "Arrays")
                 .difficulty(request.getDifficulty() != null ? request.getDifficulty() : "Easy")
                 .startTime(java.time.LocalDateTime.now())
@@ -175,6 +186,45 @@ public class ArenaService {
                 .build();
 
         matchRepository.save(match);
+    }
+
+    private UUID verifyMatchmakingPair(String matchId, UUID requestingUserId) {
+        String socketServerUrl = System.getenv("SOCKET_SERVER_URL");
+        if (socketServerUrl == null || socketServerUrl.isEmpty()) {
+            socketServerUrl = "http://localhost:4000";
+        }
+        try {
+            java.net.URL url = new java.net.URL(socketServerUrl + "/api/verify-match/" + matchId + "/" + requestingUserId);
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+
+            int status = conn.getResponseCode();
+            if (status == 200) {
+                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+
+                // Parse JSON response
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(response.toString());
+
+                if (json.has("verified") && json.get("verified").asBoolean()) {
+                    if (json.has("opponentId") && !json.get("opponentId").isNull()) {
+                        return UUID.fromString(json.get("opponentId").asText());
+                    }
+                }
+            }
+            conn.disconnect();
+        } catch (Exception e) {
+            log.error("Failed to verify matchmaking pair via socket server: {}", e.getMessage());
+        }
+        throw new SecurityException("Match verification failed. Opponent has not consented to this match.");
     }
 
     @Scheduled(fixedRate = 300_000)
@@ -188,6 +238,7 @@ public class ArenaService {
     }
 
     @Transactional
+    @CacheEvict(value = "arenaLeaderboard", allEntries = true)
     public void recordMatchResult(UUID requestingUserId, com.algobuddy.backend.dto.RecordMatchRequest request) {
         checkMatchResultRateLimit(requestingUserId);
 
@@ -196,32 +247,29 @@ public class ArenaService {
             throw new IllegalArgumentException("matchId is required");
         }
 
-        ArenaMatch existingMatch = matchRepository.findByMatchId(matchIdStr)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid match ID"));
-
-        if (!existingMatch.getPlayer1Id().equals(requestingUserId) &&
-            !existingMatch.getPlayer2Id().equals(requestingUserId)) {
-            throw new SecurityException("User is not a participant in this match");
-        }
-
-        // Derive opponent from match record, not from client input
-        UUID opponentId;
-        if (existingMatch.getPlayer1Id().equals(requestingUserId)) {
-            opponentId = existingMatch.getPlayer2Id();
-        } else {
-            opponentId = existingMatch.getPlayer1Id();
-        }
-
-        if (existingMatch.getWinnerId() != null) {
-            throw new IllegalArgumentException("Match result has already been recorded");
-        }
-
         boolean isWinner = request.isWinner();
 
         final int MAX_RETRIES = 3;
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                // Deadlock Prevention: Always lock rows in the same order
+                ArenaMatch existingMatch = matchRepository.findByMatchId(matchIdStr)
+                        .orElseThrow(() -> new IllegalArgumentException("Invalid match ID"));
+
+                if (!existingMatch.getPlayer1Id().equals(requestingUserId) &&
+                    !existingMatch.getPlayer2Id().equals(requestingUserId)) {
+                    throw new SecurityException("User is not a participant in this match");
+                }
+
+                if (existingMatch.getWinnerId() != null) {
+                    // Match result has already been recorded. We return silently to prevent
+                    // duplicate submission exceptions from throwing 500 errors on the client.
+                    return;
+                }
+
+                UUID opponentId = existingMatch.getPlayer1Id().equals(requestingUserId)
+                    ? existingMatch.getPlayer2Id()
+                    : existingMatch.getPlayer1Id();
+
                 UUID firstId = requestingUserId.compareTo(opponentId) < 0 ? requestingUserId : opponentId;
                 UUID secondId = requestingUserId.compareTo(opponentId) < 0 ? opponentId : requestingUserId;
 
@@ -259,6 +307,13 @@ public class ArenaService {
                 existingMatch.setWinnerId(isWinner ? requestingUserId : opponentId);
                 existingMatch.setEndTime(java.time.LocalDateTime.now());
                 existingMatch.setStatus(ArenaMatch.MatchStatus.COMPLETED);
+
+                boolean isReqUserPlayer1 = requestingUserId.equals(existingMatch.getPlayer1Id());
+                existingMatch.setRatingChangeP1(isReqUserPlayer1 ? p1RatingChange : p2RatingChange);
+                existingMatch.setRatingChangeP2(isReqUserPlayer1 ? p2RatingChange : p1RatingChange);
+                existingMatch.setXpAwardedP1(isReqUserPlayer1 ? p1XpAwarded : p2XpAwarded);
+                existingMatch.setXpAwardedP2(isReqUserPlayer1 ? p2XpAwarded : p1XpAwarded);
+
                 matchRepository.save(existingMatch);
 
                 cacheManager.getCache("arenaProfile").evict(requestingUserId);
